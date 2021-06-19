@@ -2,37 +2,57 @@ const http = require('http');
 const fetch = require('node-fetch');
 const donplafon = require('./donplafon.js');
 
-
 async function getHttp(url){
-  let fetcher = new Promise((resolve, reject)=>{
-    fetch(url)
-      .then(res => res.text())
-        .then(body=>{resolve(body);});
-  });
+  let res;
+  try{ res = await fetch(url); } 
+    catch (err) { throw(error)(); }
   
-  return fetcher;
+  if(res.ok)
+    return res.text();
+  else
+    throw(error)();
 }
 
-function getLink(request){
-  let linkFinder = new RegExp('https?://.*');
+function findLink(request){
+  let linkFinder = new RegExp('\\?link=(https?://.*)');
   let link = linkFinder.exec(request.url);
   if(link)
-    link = link[0];
+    return link[1];
   else
-    return "error";
-  
-  return link;
+    throw(error)(); 
 }
 
-http.createServer((request, response) => {
+http.createServer(async (request, response) => {
+  
+  let link
+  try{ link = findLink(request);}
+    catch(err){
+      response.writeHead(400, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      response.end();
+    }
+  
+  let httpStr;
+  try { httpStr = await getHttp(link)}
+    catch (err){
+      response.writeHead(400, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      response.end();
+      return;
+    };
+  
+  let obj = {};
+  obj.images = donplafon.findImages(httpStr);
+  obj.dimentions = donplafon.findDimentions(httpStr);
   response.writeHead(200, {
-    'Content-Type': 'text/plain'
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*'
   });
-  let link = getLink(request);
-  getHttp(link).then((httpStr)=>{
-    let images = donplafon.findImages(httpStr);
-    response.write(JSON.stringify(images));
-    response.write(httpStr);
-    response.end();
-  });
+  response.write(JSON.stringify(obj));
+  response.end();
+
 }).listen(6002, "0.0.0.0");
